@@ -1,0 +1,3 @@
+[submodule "modules/minitest"]
+	path = modules/minitest
+	url = git@github.com:Malphaet/minitest.git

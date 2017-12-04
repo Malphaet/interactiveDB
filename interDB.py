@@ -3,9 +3,23 @@
 # GPLv3
 
 # Modules
-import argparse,sys
+import argparse,sys,traceback
 from pyparsing import *
 import string, re
+from modules import config,functions
+
+# Autocomplete
+import os,atexit,rlcompleter, readline
+readline.parse_and_bind('tab: complete')
+#readline.set_completer()
+histfile = os.path.join(os.path.dirname(os.path.realpath(__file__)), "commandhistory")
+try:
+    readline.read_history_file(histfile)
+    # default history len is -1 (infinite), which may grow unruly
+    readline.set_history_length(1000)
+except IOError:
+    pass
+atexit.register(readline.write_history_file, histfile)
 
  #import blessings
 
@@ -34,18 +48,19 @@ ParseCommand.add_argument('-v', metavar='query', nargs='+',help='Data to store')
 def main(arg):
     res=ParseCommand.parse_args(arg)
     print res
-#Parse a query
-#ParseQuery = argparse.ArgumentParser(description='Parse the query within a command')
+
+#Parse a query will soon replace argparse entirely
+
+RawSimpleWord = Word(re.sub('[()" ]', '', string.printable))
+RawWord=Word(re.sub('"', '', string.printable))
+Token = Forward()
+Token << ( RawSimpleWord | QuotedString('"') | Group("("+OneOrMore(Token)+")") )
+Phrase = ZeroOrMore(Token)
 
 def bettersplit(text):
-    RawSimpleWord = Word(re.sub('[()" ]', '', string.printable))
-    RawWord=Word(re.sub('"', '', string.printable))
-    Token = Forward()
-    Token << ( RawSimpleWord | OneOrMore(RawWord) | Group('(' + OneOrMore(RawSimpleWord) + ')') )
-    Phrase = ZeroOrMore(Token)
-
-    print Phrase.parseString(text, parseAll=True)
-
+    arg= Phrase.parseString(text, parseAll=True)
+    print arg
+    return arg
 
 # Command
 class Execute(object):
@@ -62,5 +77,7 @@ if __name__ == '__main__':
             except KeyboardInterrupt:
                 print ""
                 break
+            except ParseBaseException:
+                traceback.print_exc()
             except:
                 pass

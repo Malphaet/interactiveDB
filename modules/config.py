@@ -59,8 +59,20 @@ class DbSelecter(object):
 
 # Internal State
 # Store info on witch query was made last and allow acess to last results (especially important to avoid having the user entering over and over again numbers)
+class InternalState(object):
+    def __init__(self):
+        self._promtname=""
+        self._db=None
+        self._lastQuery=None
 
+    def getPrompt(self):
+        return self._promtname
 
+    def getDB(self):
+        return self._db
+
+    def getLastQuery(self):
+        return self._lastQuery
 
 def makeDb(dbtype,args,kwargs):
     return DbSelecter(args,kwargs)

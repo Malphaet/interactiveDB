@@ -11,33 +11,43 @@ import string, re
 #remove [-h] [-d database] [-q query]
 #show [-h] [-d database] [-q query]
 
-#ParseCommand = argparse.ArgumentParser(prog="iterDB",description='Parse a full text command')
-#ParseCommand.add_argument('command', nargs=1,choices=["create","purge","insert","update","search","remove","show"],help="Command to execute")
-#ParseCommand.add_argument('-t', metavar='table',help="Table from witch to select")
-#ParseCommand.add_argument('-q', metavar='query', nargs='+', help='Query to select entries')
-#ParseCommand.add_argument('-v', metavar='values', nargs='+',help='Data to store')
-
+# Base grammar
 SimpleWord = Word(re.sub('[()" ]', '', string.printable)) # Everything not elimitated by "() "
 AlWord= Word(alphas)
 AlNuWord=Word(alphanums)
 PuWord=Word(printables)
-QueryVal = Forward()
-QueryVal << ( SimpleWord | QuotedString('"')  | Group("("+OneOrMore(QueryVal)+")") ) #| QuotedString("'")
 
+#Keywords
 keywords_array=["create","purge","insert","update","search","remove","show"]
 Keywords = Or(Keyword(i) for i in keywords_array)
 
+# Query
+operand_array=[ "=","!=",       #key must be equal or different to value
+                ">", "<",       #key must be bigger or smaller than value, with strings result will be int() dependant
+                "c","!c"        #val contains or doesn't contains the key
+              ]
+interquery= ["&"    # Both queries must be true
+             #,"|"  # One query must be true (Require nested parenthesis handling)
+            ]
+Operand=Or(Literal(i) for i in operand_array)
+Interquery = Keyword(interquery[0])
+label_query = AlNuWord + Operand
+stopquery=Or(Keyword(i) for i in ["&","-t","-d","-v","-h"])
+QueryVal = Forward()
+QueryVal << Group(label_query+OneOrMore(PuWord,stopOn=stopquery).setParseAction(" ".join)) + Optional(Interquery + QueryVal)
+
+# Varname assignement, Tables, Query
 VarName=AlWord + "="
 Table = "-t" + AlWord
 Query = "-q" + QueryVal
 
+# Value List
 label = AlWord + FollowedBy(":")
 attribute = Group(label + Suppress(":")+OneOrMore(PuWord,stopOn=label).setParseAction(' '.join))
 ValueList = "-v" + OneOrMore(attribute) #Supress
 
-Command = Forward()
-Command <<  Optional(VarName) + Keywords + Optional(Table) + Optional(Query) + Optional(ValueList)
-
+# Command Line
+Command = Optional(VarName) + Keywords + OneOrMore(Keyword("-h") | Table | Query | ValueList)
 
 def parseInput(text):
     return QueryVal.parseString(text, parseAll=True)
@@ -86,8 +96,8 @@ if __name__ == '__main__':
 
             self.currentTest("Query detection")
             try:
-                assert(QueryVal.parseString('"should come as one" shouldnt be parsed')[0]=="should come as one")
-                assert(nestedCompare(QueryVal.parseString('(Should come as four (should still be inside "should be one and ( should work"))'),[['(', 'Should', 'come', 'as', 'four', ['(', 'should', 'still', 'be', 'inside', 'should be one and ( should work', ')'], ')']]))
+                assert(nestedCompare(QueryVal.parseString("name c Oja & date<32 & label c 33 "),
+                    [['name', 'c', 'Oja'], '&', ['date', '<', '32'], '&', ['label', 'c', '33']]))
                 self.addSuccess()
             except:
                 self.addFailure("QueryVal.parseString failed")
@@ -114,15 +124,31 @@ if __name__ == '__main__':
             else:
                 self.addFailure("Table selection incorrect")
 
-            #Query = "-q" + QueryVal
-            self.currentTest("Query")
+            # Query = "-q" + QueryVal
+            self.currentTest("Query test")
+            if (Query.matches("-q name = 33 & val c foo bar")):
+                self.addSuccess()
+            else:
+                self.addFailure()
 
-            #ValueList = "-v" + OneOrMore(alphas+":"+(QuotedString('"')|alphas))
-            self.currentTest("List of values")
-            print ValueList.parseString("-v sam:Samuel val: a luva : 44  7")
+
+            # ValueList = "-v" + OneOrMore(attribute) #Supress
+            self.currentTest("Value assignement")
+            if (nestedCompare(['-v', ['sam', 'Samuel'], ['val', 'a'], ['luva', '44 7']],
+                ValueList.parseString("-v sam:Samuel val: a luva : 44  7"))):
+                self.addSuccess()
+            else:
+                self.addFailure("Can't parse value assignement")
+
 
             #Command <<  Optional(VarName) + Keywords + Optional(Table) + Optional(Query) + Optional(ValueList)
             self.currentTest("Command parsing")
+            try:
+                assert(nestedCompare(Command.parseString("val= update -q name = Oja gon un & date < 22/33 -t Characters -v Salary:22 Job:God Killer"),
+                    ['val', '=', 'update', '-q', ['name', '=', 'Oja gon un'], '&', ['date', '<', '22/33'], '-t', 'Characters', '-v', ['Salary', '22'], ['Job', 'God Killer']]))
+                self.addSuccess()
+            except:
+                self.addFailure("Can't parse regular command")
 
     mainTests.addTest(parserTest())
     mainTests.test()

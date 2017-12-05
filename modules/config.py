@@ -54,9 +54,6 @@ class DbSelecter(object):
         self._status(True,"")
         return True
 
-
-
-
 # Internal State
 # Store info on witch query was made last and allow acess to last results (especially important to avoid having the user entering over and over again numbers)
 class InternalState(object):

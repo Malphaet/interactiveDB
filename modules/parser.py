@@ -29,7 +29,7 @@ operand_array=[ "=","!=",       #key must be equal or different to value
 interquery= ["&"    # Both queries must be true
              #,"|"  # One query must be true (Require nested parenthesis handling)
             ]
-Operand=Or(Literal(i) for i in operand_array)
+Operand=Or(Literal(i) for i in operand_array).setName("operand")
 Interquery = Keyword(interquery[0])
 label_query = AlNuWord + Operand
 stopquery=Or(Keyword(i) for i in ["&","-t","-d","-v","-h"])
@@ -37,20 +37,23 @@ QueryVal = Forward()
 QueryVal << Group(label_query+OneOrMore(PuWord,stopOn=stopquery).setParseAction(" ".join)) + Optional(Interquery + QueryVal)
 
 # Varname assignement, Tables, Query
-VarName=AlWord + "="
-Table = "-t" + AlWord
-Query = "-q" + QueryVal
+VarName=AlWord.setName("Varname") + "="
+Table = "-t" + AlWord.setName("table")
+Database = "-d" + AlWord.setName("database") + Optional(AlWord).setName("database_type")
+Query = "-q" + QueryVal.setName("query")
 
 # Value List
 label = AlWord + FollowedBy(":")
-attribute = Group(label + Suppress(":")+OneOrMore(PuWord,stopOn=label).setParseAction(' '.join))
+attribute = Group(label + Suppress(":")+OneOrMore(PuWord,stopOn=label).setParseAction(' '.join)).setName("var:value")
 ValueList = "-v" + OneOrMore(attribute) #Supress
 
 # Command Line
-Command = Optional(VarName) + Keywords + OneOrMore(Keyword("-h") | Table | Query | ValueList)
+Command = Optional(VarName)("varname") + \
+            Keywords("command") + \
+            OneOrMore(Keyword("-h")("help") | Table("table") | Query("query") | ValueList("values") | Database("database"))
 
 def parseInput(text):
-    return QueryVal.parseString(text, parseAll=True)
+    return Command.parseString(text, parseAll=True)
 
 
 if __name__ == '__main__':
@@ -124,13 +127,22 @@ if __name__ == '__main__':
             else:
                 self.addFailure("Table selection incorrect")
 
-            # Query = "-q" + QueryVal
+            #Database = "-d" + AlWord + Optional(AlWord)
             self.currentTest("Query test")
             if (Query.matches("-q name = 33 & val c foo bar")):
                 self.addSuccess()
             else:
                 self.addFailure()
 
+            # Database = "-d" + QueryVal
+            self.currentTest("Database selection test")
+            try:
+                dbshort=Database.matches("-d verylongname",parseAll=True)
+                dblong=Database.matches("-d verylongname dbtype",parseAll=True)
+                assert(dblong&dbshort)
+                self.addSuccess()
+            except:
+                self.addFailure("Can't process database")
 
             # ValueList = "-v" + OneOrMore(attribute) #Supress
             self.currentTest("Value assignement")
@@ -143,12 +155,32 @@ if __name__ == '__main__':
 
             #Command <<  Optional(VarName) + Keywords + Optional(Table) + Optional(Query) + Optional(ValueList)
             self.currentTest("Command parsing")
+            cmdtst=Command.parseString("val= update -q name = Oja gon un & date < 22/33 -t Characters -v Salary:22 Job:God Killer")
             try:
-                assert(nestedCompare(Command.parseString("val= update -q name = Oja gon un & date < 22/33 -t Characters -v Salary:22 Job:God Killer"),
-                    ['val', '=', 'update', '-q', ['name', '=', 'Oja gon un'], '&', ['date', '<', '22/33'], '-t', 'Characters', '-v', ['Salary', '22'], ['Job', 'God Killer']]))
+                assert(nestedCompare(cmdtst.asList(),['val', '=', 'update', '-q', ['name', '=', 'Oja gon un'], '&', ['date', '<', '22/33'], '-t', 'Characters', '-v', ['Salary', '22'], ['Job', 'God Killer']]))
                 self.addSuccess()
             except:
                 self.addFailure("Can't parse regular command")
+
+            self.currentTest("Retrieving parse results")
+
+            try:
+                assert(nestedCompare(cmdtst["varname"],['val', '=']))
+                assert(nestedCompare(cmdtst["command"],"update"))
+                assert(nestedCompare(cmdtst["query"],['-q', ['name', '=', 'Oja gon un'], '&', ['date', '<', '22/33']]))
+                assert(nestedCompare(cmdtst["table"],['-t', 'Characters']))
+                assert(nestedCompare(cmdtst["values"],['-v', ['Salary', '22'], ['Job', 'God Killer']]))
+                try:
+                    cmdtst["database"]
+                except KeyError:
+                    pass
+                except:
+                    self.addFailure("Error retrieving database")
+                self.addSuccess()
+            except:
+                self.addFailure("Can't acess all fields")
+
+
 
     mainTests.addTest(parserTest())
     mainTests.test()

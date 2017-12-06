@@ -8,6 +8,7 @@ from modules import config,functions,parser
 import blessings
 from pyparsing import ParseBaseException
 
+
 # Autocomplete
 import os,atexit,rlcompleter, readline
 class Completer:
@@ -34,8 +35,9 @@ except IOError:
     pass
 atexit.register(readline.write_history_file, histfile)
 
-def action_selecter(parsed_input):
+def action_selecter(parsed_input,stateobj):
     #res=parser.parseInput(arg)
+    stateobj.lastCommand=parsed_input
     actions={
         "create":None,
         "purge":None,
@@ -45,16 +47,43 @@ def action_selecter(parsed_input):
         "remove":None,
         "show":None
     }
+
+    # Backing up command used
+    try:
+        stateobj.listVars[parsed_input["varname"]]=parsed_input.asList()[1:]
+        print stateobj.listVars
+    except:
+        VarName=None
+
     try:
         parsed_input["command"]
+    except:
+        # ParseBaseException shouldn't happen
+        pass
 
-        parsed_input["varname"]
+    try:
+        dbname=parsed_input["database"][1]
+        if len(parsed_input["database"])>2:
+            dbtype=parsed_input["database"][2]
+            state.dbs[dbname]=dbtype
+        state.database=dbname
+        state.database_type=parsed_input["database"]
+    except KeyError:
+        #Load database from memory or Abort
+        pass
+
+    try:
+        state.table=parsed_input["table"][1]
+    except:
+        #Load table from memory or Abort
+        pass
+
+    try:
         parsed_input["query"]
-        parsed_input["table"]
         parsed_input["values"]
-        parsed_input["database"]
     except:
         print "Whoops"
+
     print res
 
 # Command
@@ -65,10 +94,12 @@ if __name__ == '__main__':
     if len(sys.argv)>1:
         main(sys.argv[1:])
     else:
+        state=config.InternalState("interDB > ")
         while 1:
             try:
-                args=parser.parseInput(raw_input("interDB > "))
-                action_selecter(args)
+                text=raw_input(state.getPrompt())
+                args=parser.parseInput(text)
+                action_selecter(args,state)
             except KeyboardInterrupt:
                 print ""
                 break

@@ -37,14 +37,14 @@ QueryVal = Forward()
 QueryVal << Group(label_query+OneOrMore(PuWord,stopOn=stopquery).setParseAction(" ".join)) + Optional(Interquery + QueryVal)
 
 # Varname assignement, Tables, Query
-VarName=AlWord.setName("Varname") + "="
+VarName=AlNuWord.setName("Varname") + "="
 Table = "-t" + AlWord.setName("table")
 Database = "-d" + AlWord.setName("database") + Optional(AlWord).setName("database_type")
 Query = "-q" + QueryVal.setName("query")
 
 # Value List
-label = AlWord + FollowedBy(":")
-attribute = Group(label + Suppress(":")+OneOrMore(PuWord,stopOn=label).setParseAction(' '.join)).setName("var:value")
+label = AlNuWord + FollowedBy(":")
+attribute = Group(label + Suppress(":")+(PuWord|QuotedString('"'))).setName("var:value") #OneOrMore(PuWord,stopOn=label).setParseAction(' '.join)
 ValueList = "-v" + OneOrMore(attribute) #Supress
 
 # Command Line
@@ -146,8 +146,9 @@ if __name__ == '__main__':
 
             # ValueList = "-v" + OneOrMore(attribute) #Supress
             self.currentTest("Value assignement")
+            print ValueList.parseString('-v sam:Samuel val: a luva : "44  7"')
             if (nestedCompare(['-v', ['sam', 'Samuel'], ['val', 'a'], ['luva', '44 7']],
-                ValueList.parseString("-v sam:Samuel val: a luva : 44  7"))):
+                ValueList.parseString('-v sam:Samuel val: "a" luva : "44  7"'))):
                 self.addSuccess()
             else:
                 self.addFailure("Can't parse value assignement")

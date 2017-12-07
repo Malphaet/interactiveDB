@@ -59,7 +59,8 @@ class DbSelecter(object):
 class InternalState(object):
     def __init__(self,prompt):
         self.promtname=prompt
-        self.dbname=None
+        self.database=None
+        self.database_type=None
         self.dbs={}
         self.lastCommand=None
         self.listVars={}
@@ -68,9 +69,9 @@ class InternalState(object):
     def getPrompt(self):
         addto=""
         if (self.table!=None):
-            addto=self.table+" "
-        if (self.dbname!=None):
-            addto="@"+self.dbname+" "
+            addto+=self.table
+        if (self.database!=None):
+            addto+="@"+self.database+":"
         return addto+self.promtname
 
 #def makeDb(dbtype,args,kwargs):

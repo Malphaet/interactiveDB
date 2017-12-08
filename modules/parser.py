@@ -44,7 +44,7 @@ Query = "-q" + QueryVal.setName("query")
 
 # Value List
 label = AlNuWord + FollowedBy(":")
-attribute = Group(label + Suppress(":")+(PuWord|QuotedString('"'))).setName("var:value") #OneOrMore(PuWord,stopOn=label).setParseAction(' '.join)
+attribute = Group(label + Suppress(":")+(SimpleWord|QuotedString('"'))).setName("var:value") #OneOrMore(PuWord,stopOn=label).setParseAction(' '.join)
 ValueList = "-v" + OneOrMore(attribute) #Supress
 
 # Command Line
@@ -62,11 +62,13 @@ if __name__ == '__main__':
     term=blessings.Terminal()
 
     mainTests=minitest.testGroup("Main Tests",term,verbose=True,align=40)
-    def nestedCompare(t1,t2):
+    def nestedCompare(t1,t2,verbose=False):
         for i in range(len(t1)):
             e,f=t1[i],t2[i]
+            if verbose:
+                print "[",e==f,"]",e,f
             if type(e)!=str and type(e)!=int:
-                if not nestedCompare(e,f):
+                if not nestedCompare(e,f,verbose=verbose):
                     return False
             else:
                 if (e!=f):
@@ -146,9 +148,8 @@ if __name__ == '__main__':
 
             # ValueList = "-v" + OneOrMore(attribute) #Supress
             self.currentTest("Value assignement")
-            print ValueList.parseString('-v sam:Samuel val: a luva : "44  7"')
-            if (nestedCompare(['-v', ['sam', 'Samuel'], ['val', 'a'], ['luva', '44 7']],
-                ValueList.parseString('-v sam:Samuel val: "a" luva : "44  7"'))):
+            if (nestedCompare(['-v', ['sam', 'Samuel'], ['val', 'a'], ['luva', '44  7']],
+                ValueList.parseString('-v sam:Samuel val: a luva : "44  7"'))):
                 self.addSuccess()
             else:
                 self.addFailure("Can't parse value assignement")
@@ -156,9 +157,14 @@ if __name__ == '__main__':
 
             #Command <<  Optional(VarName) + Keywords + Optional(Table) + Optional(Query) + Optional(ValueList)
             self.currentTest("Command parsing")
-            cmdtst=Command.parseString("val= update -q name = Oja gon un & date < 22/33 -t Characters -v Salary:22 Job:God Killer")
+            cmdtst=Command.parseString('val= update -q name = Oja gon un & date < 22/33 -t Characters -v Salary:22 Job:"God Killer"')
             try:
-                assert(nestedCompare(cmdtst.asList(),['val', '=', 'update', '-q', ['name', '=', 'Oja gon un'], '&', ['date', '<', '22/33'], '-t', 'Characters', '-v', ['Salary', '22'], ['Job', 'God Killer']]))
+                assert(nestedCompare(cmdtst.asList(),\
+                    ['val', '=', 'update', '-q',\
+                    ['name', '=', 'Oja gon un'], '&',\
+                    ['date', '<', '22/33'], '-t', \
+                    'Characters', '-v', ['Salary', '22'],\
+                    ['Job', 'God Killer']]))
                 self.addSuccess()
             except:
                 self.addFailure("Can't parse regular command")
@@ -166,7 +172,7 @@ if __name__ == '__main__':
             self.currentTest("Retrieving parse results")
 
             try:
-                assert(nestedCompare(cmdtst["varname"],['val', '=']))
+                assert(nestedCompare(['val', '='],cmdtst["varname"]))
                 assert(nestedCompare(cmdtst["command"],"update"))
                 assert(nestedCompare(cmdtst["query"],['-q', ['name', '=', 'Oja gon un'], '&', ['date', '<', '22/33']]))
                 assert(nestedCompare(cmdtst["table"],['-t', 'Characters']))
